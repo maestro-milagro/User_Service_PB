@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/maestro-milagro/User_Service_PB/internal/http-server/handlers/login"
 	"log/slog"
 	"net/http"
 	"os"
@@ -59,6 +60,8 @@ func main() {
 	router.Use(middleware.URLFormat)
 
 	router.Post("/", save.New(log, storage))
+
+	router.Get("/email={email}&pass_hash={pass_hash}", login.New(log, storage, cfg.Secret, cfg.TokenTTL))
 
 	log.Info("starting server", slog.String("address", cfg.Address))
 

@@ -9,7 +9,9 @@ import (
 )
 
 type Config struct {
-	Env        string `yaml:"env" env-default:"local"`
+	Env        string        `yaml:"env" env-default:"local"`
+	Secret     string        `yaml:"secret"`
+	TokenTTL   time.Duration `yaml:"token_ttl"`
 	DB         `yaml:"db"`
 	HTTPServer `yaml:"http_server"`
 }

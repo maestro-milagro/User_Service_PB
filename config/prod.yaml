@@ -1,5 +1,6 @@
 env: "prod"
-storage_path: "./storage.db"
+secret: "my-32-character-ultra-secure-and-ultra-long-secret"
+tokenTTL: 5m
 http_server:
   address: "0.0.0.0:8082"
   timeout: 4s

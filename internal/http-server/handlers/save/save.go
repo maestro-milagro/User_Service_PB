@@ -3,6 +3,8 @@ package save
 import (
 	"context"
 	"errors"
+	"fmt"
+	"golang.org/x/crypto/bcrypt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -37,18 +39,22 @@ func New(log *slog.Logger, userSaver UserSaver) http.HandlerFunc {
 			slog.String("request_id", middleware.GetReqID(r.Context())),
 		)
 
-		var req Request
+		//var req Request
+		var req models.User
 
 		err := render.DecodeJSON(r.Body, &req)
 		if errors.Is(err, io.EOF) {
 			log.Error("request body is empty")
 
-			render.JSON(w, r, models.Error("empty request"))
+			render.Status(r, http.StatusBadRequest)
 
+			render.JSON(w, r, models.Error("empty request"))
 			return
 		}
 		if err != nil {
 			log.Error("failed to decode request body", sl.Err(err))
+
+			render.Status(r, http.StatusInternalServerError)
 
 			render.JSON(w, r, models.Error("failed to decode request"))
 
@@ -57,20 +63,41 @@ func New(log *slog.Logger, userSaver UserSaver) http.HandlerFunc {
 
 		log.Info("request body decoded", slog.Any("request", req))
 
+		log.Info("registering user")
+
+		passHash, err := bcrypt.GenerateFromPassword([]byte(req.PassHash), bcrypt.DefaultCost)
+
+		req.PassHash = string(passHash)
+
+		if err != nil {
+			log.Error("failed to generate password hash", sl.Err(err))
+
+			render.Status(r, http.StatusInternalServerError)
+
+			render.JSON(w, r, models.Error("failed to generate password hash"))
+
+			return
+		}
+
 		if err := validator.New().Struct(req); err != nil {
 			var validateErr validator.ValidationErrors
 			errors.As(err, &validateErr)
 
 			log.Error("invalid request", sl.Err(err))
 
+			render.Status(r, http.StatusBadRequest)
+
 			render.JSON(w, r, models.ValidationError(validateErr))
 
 			return
 		}
-
-		id, err := userSaver.SaveUser(context.Background(), req.User)
+		bruh := string(req.PassHash)
+		fmt.Println(bruh)
+		id, err := userSaver.SaveUser(context.Background(), req)
 		if errors.Is(err, storage.ErrUserExist) {
-			log.Info("user already exists", slog.String("user", req.User.Email))
+			log.Info("user already exists", slog.String("user", req.Email))
+
+			render.Status(r, http.StatusBadRequest)
 
 			render.JSON(w, r, models.Error("user already exists"))
 
@@ -78,6 +105,8 @@ func New(log *slog.Logger, userSaver UserSaver) http.HandlerFunc {
 		}
 		if err != nil {
 			log.Error("failed to add user", sl.Err(err))
+
+			render.Status(r, http.StatusInternalServerError)
 
 			render.JSON(w, r, models.Error("failed to add user"))
 
